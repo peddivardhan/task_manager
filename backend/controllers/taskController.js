@@ -1,40 +1,33 @@
-const taskModel = require("../models/taskModel");
+const Task = require("../models/Task");
 
-function listTasks(req, res) {
+async function listTasks(req, res) {
   const filter = req.query.filter || "all";
-  if (!["all", "done", "pending"].includes(filter)) {
-    return res.status(400).json({ error: "filter must be all, done or pending" });
-  }
-  res.json(taskModel.getTasks(filter));
+  const query = { user: req.userId };
+  if (filter === "done") query.done = true;
+  if (filter === "pending") query.done = false;
+
+  const tasks = await Task.find(query).sort({ createdAt: 1 });
+  res.json(tasks);
 }
 
-function createTask(req, res) {
-  const { title } = req.body || {};
-  const task = taskModel.addTask(title);
-  if (!task) {
-    return res.status(400).json({ error: "title is required" });
-  }
+async function createTask(req, res) {
+  const task = await Task.create({ title: req.body.title, user: req.userId });
   res.status(201).json(task);
 }
 
-function toggleTask(req, res) {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id)) {
-    return res.status(400).json({ error: "id must be a number" });
-  }
-  const task = taskModel.toggleTask(id);
+async function toggleTask(req, res) {
+  const task = await Task.findOne({ _id: req.params.id, user: req.userId });
   if (!task) {
     return res.status(404).json({ error: "task not found" });
   }
+  task.done = !task.done;
+  await task.save();
   res.json(task);
 }
 
-function deleteTask(req, res) {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id)) {
-    return res.status(400).json({ error: "id must be a number" });
-  }
-  if (!taskModel.deleteTask(id)) {
+async function deleteTask(req, res) {
+  const result = await Task.deleteOne({ _id: req.params.id, user: req.userId });
+  if (result.deletedCount === 0) {
     return res.status(404).json({ error: "task not found" });
   }
   res.status(204).send();
